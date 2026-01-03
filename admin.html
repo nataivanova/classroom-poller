@@ -1,15 +1,15 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Poll Admin</title>
 
 <style>
   body {
     font-family: sans-serif;
     max-width: 700px;
-    margin: 40px auto;
+    margin: 30px auto;
   }
 
   button {
@@ -25,40 +25,38 @@
 
   pre {
     background: #f4f4f4;
-    padding: 15px;
-    margin-top: 20px;
+    padding: 12px;
+    margin-top: 12px;
     font-size: 1.05em;
-    line-height: 1.4;
+    line-height: 1.35;
   }
 
   /* ---------- MOBILE OVERRIDES ---------- */
   @media (pointer: coarse) and (max-width: 900px) {
 
     body {
-      max-width: 95%;
-      margin: 20px auto;
+      max-width: 96%;
+      margin: 12px auto;
     }
 
     h2 {
-      font-size: 2.2em;
-    }
-
-    h3 {
       font-size: 1.6em;
-      margin-top: 1.2em;
+      margin-bottom: 8px;
     }
 
+    /* buttons stacked, slightly smaller */
     button {
       display: block;
       width: 100%;
-      font-size: 2.4em;        /* ~3x */
-      padding: 25px 0;
-      margin: 15px 0;
+      font-size: 1.9em;        /* ~20% smaller than before */
+      padding: 18px 0;
+      margin: 10px 0;
     }
 
     pre {
-      font-size: 1.6em;
-      padding: 20px;
+      font-size: 1.35em;
+      padding: 12px;
+      margin-top: 10px;
     }
   }
 </style>
@@ -68,15 +66,15 @@
 
 <h2>Poll Admin</h2>
 
-<h3>Start poll (choose answers)</h3>
+<!-- START / SELECT buttons -->
 <button id="opt-3" onclick="startPoll(['A','B','C'])">A–B–C</button>
 <button id="opt-4" onclick="startPoll(['A','B','C','D'])">A–B–C–D</button>
 <button id="opt-5" onclick="startPoll(['A','B','C','D','E'])">A–B–C–D–E</button>
 
-<h3>Control</h3>
-<button onclick="closePoll()">CLOSE POLL</button>
+<!-- close button -->
+<button onclick="closePoll()">CLOSE</button>
 
-<h3>Status</h3>
+<!-- status -->
 <pre id="status">Initializing…</pre>
 
 <script>
@@ -92,7 +90,6 @@ let lastTotal = 0;
 let lastChangeTime = Date.now();
 let pollOpenTime = null;
 
-/* ---------- helpers ---------- */
 function formatTime(ms) {
   const s = Math.floor(ms / 1000);
   const m = Math.floor(s / 60);
@@ -102,10 +99,9 @@ function formatTime(ms) {
 
 function bar(n, max) {
   if (max === 0) return "";
-  return "█".repeat(Math.round(20 * n / max));
+  return "█".repeat(Math.round(16 * n / max));  /* slightly narrower bars */
 }
 
-/* ---------- start poll = set options + open ---------- */
 async function startPoll(opts) {
   await fetch("/set_options", {
     method: "POST",
@@ -118,22 +114,18 @@ async function startPoll(opts) {
   pollOpenTime = Date.now();
   lastTotal = 0;
   lastChangeTime = Date.now();
-
   updateStatus();
 }
 
-/* ---------- close poll ---------- */
 async function closePoll() {
   await fetch("/close", {method: "POST"});
   updateStatus();
 }
 
-/* ---------- status update ---------- */
 async function updateStatus() {
   const r = await fetch("/results");
   const j = await r.json();
 
-  /* highlight active option set if poll is open */
   Object.values(optButtons).forEach(b => b.classList.remove("active"));
   if (j.open && optButtons[j.options.length]) {
     optButtons[j.options.length].classList.add("active");
@@ -161,15 +153,10 @@ async function updateStatus() {
   );
 
   statusBox.textContent =
-    `Poll: ${j.open ? "OPEN" : "CLOSED"}\n` +
-    `Options: ${j.options.join(", ")}\n\n` +
-    `Votes:\n${lines.join("\n")}\n\n` +
-    `Total votes: ${total}\n` +
-    `Time since open: ${elapsed}\n` +
-    `Status: ${frozen ? "FROZEN (no new votes)" : "ACTIVE"}`;
+    `${j.open ? "OPEN" : "CLOSED"} | ${elapsed} | ${frozen ? "FROZEN" : "ACTIVE"}\n` +
+    lines.join("\n");
 }
 
-/* ---------- auto refresh ---------- */
 updateStatus();
 setInterval(updateStatus, 1000);
 </script>
