@@ -16,10 +16,12 @@
     text-align: center;
   }
 
+  /* reserve subtitle space to avoid jump */
   #subtitle {
     min-height: 1.6em;
   }
 
+  /* option row */
   .option {
     display: flex;
     align-items: center;
@@ -28,6 +30,7 @@
     padding-right: 10%;
   }
 
+  /* voting buttons */
   button.vote {
     width: 100px;
     height: 100px;
@@ -51,6 +54,7 @@
     opacity: 0.85;
   }
 
+  /* result bar container */
   .barbox {
     flex-grow: 1;
     height: 42px;
@@ -72,6 +76,7 @@
     top: 6px;
     font-size: 1.4em;
     font-weight: bold;
+    color: #000;
   }
 </style>
 </head>
@@ -91,6 +96,7 @@ const optionsDiv = document.getElementById("options");
 let currentOptions = [];
 let myVote = null;
 let pollOpen = null;
+let lastPollOpen = null;
 let sessionClosed = false;
 
 /* ---------- build options ---------- */
@@ -162,6 +168,13 @@ async function pollState() {
   pollOpen = s.open;
   sessionClosed = s.session_closed;
 
+  /* RESET selection when a NEW poll opens */
+  if (pollOpen && lastPollOpen === false) {
+    myVote = null;
+    updateButtonStyles();
+  }
+  lastPollOpen = pollOpen;
+
   if (sessionClosed) {
     title.textContent = "Thank you";
     subtitle.textContent = "Polls are closed. Have a nice day.";
@@ -215,7 +228,7 @@ async function showResults() {
 
 /* ---------- vote ---------- */
 async function vote(letter) {
-  if (!pollOpen) return;   // HARD GUARD
+  if (!pollOpen) return;   // hard guard
 
   myVote = letter;
   updateButtonStyles();
