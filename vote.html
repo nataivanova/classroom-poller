@@ -16,19 +16,17 @@
     text-align: center;
   }
 
-  /* Reserve space to avoid layout jump */
-  p#subtitle {
+  /* reserve subtitle space to avoid jump */
+  #subtitle {
     min-height: 1.6em;
   }
 
-  /* container for option rows */
   .option {
     display: flex;
     align-items: center;
     margin: 12px 0;
   }
 
-  /* voting buttons */
   button.vote {
     width: 100px;
     height: 100px;
@@ -46,7 +44,6 @@
     border-color: #2c5aa0;
   }
 
-  /* result bar container */
   .barbox {
     flex-grow: 1;
     height: 28px;
@@ -58,7 +55,7 @@
 
   .barfill {
     height: 100%;
-    background: #888;   /* neutral color */
+    background: #888;
     width: 0%;
   }
 
@@ -67,7 +64,6 @@
     right: 6px;
     top: 2px;
     font-size: 1em;
-    color: #000;
   }
 </style>
 </head>
@@ -87,8 +83,9 @@ const optionsDiv = document.getElementById("options");
 let currentOptions = [];
 let myVote = null;
 let pollOpen = null;
+let sessionClosed = false;
 
-/* ---------- build option rows ---------- */
+/* ---------- build options ---------- */
 function buildOptions(opts) {
   optionsDiv.innerHTML = "";
   currentOptions = opts.slice();
@@ -129,7 +126,6 @@ function updateButtonStyles() {
   });
 }
 
-/* ---------- sync options ---------- */
 async function syncOptions() {
   const r = await fetch("/options");
   const j = await r.json();
@@ -145,20 +141,27 @@ async function pollState() {
   await syncOptions();
 
   const r = await fetch("/state");
-  const j = await r.json();
+  const s = await r.json();
 
-  if (j.open !== pollOpen) {
-    pollOpen = j.open;
+  pollOpen = s.open;
+  sessionClosed = s.session_closed;
 
-    if (pollOpen) {
-      title.textContent = "Voting OPEN";
-      subtitle.textContent = "Select your answer.";
-      hideBars();
-    } else {
-      title.textContent = "Poll CLOSED";
-      subtitle.textContent = "Class results:";
-      showResults();
-    }
+  if (sessionClosed) {
+    title.textContent = "Thank you";
+    subtitle.textContent = "Polls are closed. Have a nice day.";
+    optionsDiv.style.display = "none";
+    return;
+  }
+
+  if (pollOpen) {
+    title.textContent = "Voting OPEN";
+    subtitle.textContent = "Select your answer.";
+    hideBars();
+    optionsDiv.style.display = "block";
+  } else {
+    title.textContent = "Poll CLOSED";
+    subtitle.textContent = "Class results:";
+    showResults();
   }
 }
 
