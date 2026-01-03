@@ -10,21 +10,55 @@
     max-width: 700px;
     margin: 40px auto;
   }
+
   button {
     font-size: 1.1em;
     margin: 5px;
     padding: 10px 15px;
   }
+
   button.active {
     background: #2c5aa0;
     color: white;
   }
+
   pre {
     background: #f4f4f4;
     padding: 15px;
     margin-top: 20px;
     font-size: 1.05em;
     line-height: 1.4;
+  }
+
+  /* ---------- MOBILE OVERRIDES ---------- */
+  @media (pointer: coarse) and (max-width: 900px) {
+
+    body {
+      max-width: 95%;
+      margin: 20px auto;
+    }
+
+    h2 {
+      font-size: 2.2em;
+    }
+
+    h3 {
+      font-size: 1.6em;
+      margin-top: 1.2em;
+    }
+
+    button {
+      display: block;
+      width: 100%;
+      font-size: 2.4em;        /* ~3x */
+      padding: 25px 0;
+      margin: 15px 0;
+    }
+
+    pre {
+      font-size: 1.6em;
+      padding: 20px;
+    }
   }
 </style>
 </head>
