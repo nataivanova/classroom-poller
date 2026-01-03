@@ -33,13 +33,12 @@
 
 <h2>Poll Admin</h2>
 
-<h3>Answer options</h3>
-<button id="opt-3" onclick="setOptions(['A','B','C'])">A–B–C</button>
-<button id="opt-4" onclick="setOptions(['A','B','C','D'])">A–B–C–D</button>
-<button id="opt-5" onclick="setOptions(['A','B','C','D','E'])">A–B–C–D–E</button>
+<h3>Start poll (choose answers)</h3>
+<button id="opt-3" onclick="startPoll(['A','B','C'])">A–B–C</button>
+<button id="opt-4" onclick="startPoll(['A','B','C','D'])">A–B–C–D</button>
+<button id="opt-5" onclick="startPoll(['A','B','C','D','E'])">A–B–C–D–E</button>
 
 <h3>Control</h3>
-<button onclick="openPoll()">OPEN POLL</button>
 <button onclick="closePoll()">CLOSE POLL</button>
 
 <h3>Status</h3>
@@ -47,6 +46,7 @@
 
 <script>
 const statusBox = document.getElementById("status");
+
 const optButtons = {
   3: document.getElementById("opt-3"),
   4: document.getElementById("opt-4"),
@@ -57,38 +57,52 @@ let lastTotal = 0;
 let lastChangeTime = Date.now();
 let pollOpenTime = null;
 
-async function setOptions(opts) {
+/* ---------- helpers ---------- */
+function formatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+}
+
+function bar(n, max) {
+  if (max === 0) return "";
+  return "█".repeat(Math.round(20 * n / max));
+}
+
+/* ---------- start poll = set options + open ---------- */
+async function startPoll(opts) {
   await fetch("/set_options", {
     method: "POST",
-    headers: {"Content-Type":"application/json"},
+    headers: {"Content-Type": "application/json"},
     body: JSON.stringify({options: opts})
   });
-  pollOpenTime = null;
+
+  await fetch("/open", {method: "POST"});
+
+  pollOpenTime = Date.now();
   lastTotal = 0;
+  lastChangeTime = Date.now();
+
   updateStatus();
 }
 
-async function openPoll() {
-  await fetch("/open", {method:"POST"});
-  pollOpenTime = Date.now();
-  lastChangeTime = Date.now();
-}
-
+/* ---------- close poll ---------- */
 async function closePoll() {
-  await fetch("/close", {method:"POST"});
+  await fetch("/close", {method: "POST"});
+  updateStatus();
 }
 
-function formatTime(ms) {
-  const s = Math.floor(ms/1000);
-  return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
-}
-
+/* ---------- status update ---------- */
 async function updateStatus() {
   const r = await fetch("/results");
   const j = await r.json();
 
+  /* highlight active option set if poll is open */
   Object.values(optButtons).forEach(b => b.classList.remove("active"));
-  optButtons[j.options.length].classList.add("active");
+  if (j.open && optButtons[j.options.length]) {
+    optButtons[j.options.length].classList.add("active");
+  }
 
   let total = 0;
   let max = 0;
@@ -102,10 +116,14 @@ async function updateStatus() {
     lastChangeTime = Date.now();
   }
 
-  const frozen = Date.now() - lastChangeTime > 10000;
-  const elapsed = (j.open && pollOpenTime) ? formatTime(Date.now()-pollOpenTime) : "00:00";
+  const frozen = (Date.now() - lastChangeTime) > 10000;
+  const elapsed = (j.open && pollOpenTime)
+    ? formatTime(Date.now() - pollOpenTime)
+    : "00:00";
 
-  let lines = j.options.map(k => `${k}: ${"█".repeat(max ? Math.round(20*j.counts[k]/max) : 0)} ${j.counts[k]}`);
+  const lines = j.options.map(
+    k => `${k}: ${bar(j.counts[k], max)} ${j.counts[k]}`
+  );
 
   statusBox.textContent =
     `Poll: ${j.open ? "OPEN" : "CLOSED"}\n` +
@@ -113,9 +131,10 @@ async function updateStatus() {
     `Votes:\n${lines.join("\n")}\n\n` +
     `Total votes: ${total}\n` +
     `Time since open: ${elapsed}\n` +
-    `Status: ${frozen ? "FROZEN" : "ACTIVE"}`;
+    `Status: ${frozen ? "FROZEN (no new votes)" : "ACTIVE"}`;
 }
 
+/* ---------- auto refresh ---------- */
 updateStatus();
 setInterval(updateStatus, 1000);
 </script>
