@@ -16,12 +16,10 @@
     text-align: center;
   }
 
-  /* reserve subtitle space to avoid jump */
   #subtitle {
     min-height: 1.6em;
   }
 
-  /* option row */
   .option {
     display: flex;
     align-items: center;
@@ -30,7 +28,6 @@
     padding-right: 10%;
   }
 
-  /* voting buttons */
   button.vote {
     width: 100px;
     height: 100px;
@@ -48,13 +45,11 @@
     border-color: #2c5aa0;
   }
 
-  /* disabled state after poll close */
   button.vote:disabled {
     cursor: default;
     opacity: 0.85;
   }
 
-  /* result bar container */
   .barbox {
     flex-grow: 1;
     height: 42px;
@@ -93,11 +88,14 @@ const title = document.getElementById("title");
 const subtitle = document.getElementById("subtitle");
 const optionsDiv = document.getElementById("options");
 
+const THANK_YOU_MS = 5 * 60 * 1000;  // 5 minutes
+
 let currentOptions = [];
 let myVote = null;
 let pollOpen = null;
 let lastPollOpen = null;
 let sessionClosed = false;
+let sessionClosedAt = null;
 
 /* ---------- build options ---------- */
 function buildOptions(opts) {
@@ -147,7 +145,6 @@ function updateButtonEnabled() {
   });
 }
 
-/* ---------- sync options ---------- */
 async function syncOptions() {
   const r = await fetch("/options");
   const j = await r.json();
@@ -156,6 +153,18 @@ async function syncOptions() {
     if (!j.options.includes(myVote)) myVote = null;
     buildOptions(j.options);
   }
+}
+
+function showWelcome() {
+  title.textContent = "Welcome";
+  subtitle.textContent = "Please wait for the poll to open.";
+  optionsDiv.style.display = "none";
+}
+
+function showThankYou() {
+  title.textContent = "Thank you";
+  subtitle.textContent = "Polls are closed. Have a nice day.";
+  optionsDiv.style.display = "none";
 }
 
 /* ---------- poll state ---------- */
@@ -167,18 +176,26 @@ async function pollState() {
 
   pollOpen = s.open;
   sessionClosed = s.session_closed;
+  sessionClosedAt = s.session_closed_at;
 
-  /* RESET selection when a NEW poll opens */
+  /* reset selection when a NEW poll opens */
   if (pollOpen && lastPollOpen === false) {
     myVote = null;
     updateButtonStyles();
   }
   lastPollOpen = pollOpen;
 
+  /* session ended handling with timeout */
   if (sessionClosed) {
-    title.textContent = "Thank you";
-    subtitle.textContent = "Polls are closed. Have a nice day.";
-    optionsDiv.style.display = "none";
+    const now = Date.now();
+    const closedMs = (sessionClosedAt ? sessionClosedAt * 1000 : now);
+    const age = now - closedMs;
+
+    if (age <= THANK_YOU_MS) {
+      showThankYou();
+    } else {
+      showWelcome();
+    }
     return;
   }
 
@@ -188,8 +205,10 @@ async function pollState() {
     hideBars();
     optionsDiv.style.display = "block";
   } else {
+    /* not open, not session closed: show results (normal close) */
     title.textContent = "Poll CLOSED";
     subtitle.textContent = "Class results:";
+    optionsDiv.style.display = "block";
     showResults();
   }
 
@@ -228,7 +247,7 @@ async function showResults() {
 
 /* ---------- vote ---------- */
 async function vote(letter) {
-  if (!pollOpen) return;   // hard guard
+  if (!pollOpen) return;
 
   myVote = letter;
   updateButtonStyles();
@@ -241,6 +260,7 @@ async function vote(letter) {
 }
 
 /* ---------- init ---------- */
+showWelcome();     // ensures first paint is Welcome, even before first fetch
 pollState();
 setInterval(pollState, 1000);
 </script>
