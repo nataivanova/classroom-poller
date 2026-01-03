@@ -14,10 +14,19 @@
     font-size: 2.5em;
     margin: 10px;
     padding: 20px 30px;
+    border: 2px solid #444;
+    background: #eee;
+    cursor: pointer;
+  }
+  button.selected {
+    background: #4a90e2;
+    color: white;
+    border-color: #2c5aa0;
   }
   pre {
-    font-size: 1.5em;
+    font-size: 1.4em;
     margin-top: 30px;
+    line-height: 1.4;
   }
 </style>
 </head>
@@ -39,6 +48,20 @@ const output   = document.getElementById("output");
 
 let lastOpen = null;
 let hasSeenOpen = false;
+let myVote = null;
+
+/* ---------- helpers ---------- */
+function bar(n, max) {
+  if (max === 0) return "";
+  const width = Math.round(20 * n / max);
+  return "█".repeat(width);
+}
+
+function updateButtonStyles() {
+  Array.from(buttons.children).forEach(b => {
+    b.classList.toggle("selected", b.textContent === myVote);
+  });
+}
 
 /* ---------- load allowed options ---------- */
 async function loadOptions() {
@@ -63,22 +86,18 @@ async function pollState() {
     lastOpen = j.open;
 
     if (j.open) {
-      // poll just opened
       hasSeenOpen = true;
       title.textContent = "Voting OPEN";
-      subtitle.textContent = "Please select your answer.";
+      subtitle.textContent = "Select your answer.";
       output.textContent = "";
       buttons.style.display = "block";
-
+      updateButtonStyles();
     } else {
-      // poll is closed
       buttons.style.display = "none";
 
       if (hasSeenOpen) {
-        // show results only if this session saw the poll open
         showResults();
       } else {
-        // fresh load before poll opens
         title.textContent = "Welcome";
         subtitle.textContent = "Please wait for the poll to open.";
         output.textContent = "";
@@ -95,15 +114,26 @@ async function showResults() {
   title.textContent = "Results";
   subtitle.textContent = "";
 
+  let max = 0;
+  j.options.forEach(k => {
+    if (j.counts[k] > max) max = j.counts[k];
+  });
+
   let text = "";
   j.options.forEach(k => {
-    text += `${k}: ${j.counts[k]}\n`;
+    const n = j.counts[k];
+    const mark = (k === myVote) ? " ← your vote" : "";
+    text += `${k}: ${bar(n, max)} ${n}${mark}\n`;
   });
+
   output.textContent = text;
 }
 
 /* ---------- submit vote ---------- */
 async function vote(letter) {
+  myVote = letter;
+  updateButtonStyles();
+
   await fetch("/vote", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
