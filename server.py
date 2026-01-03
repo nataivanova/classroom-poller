@@ -1,17 +1,19 @@
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import json
 import os
+import time
 
 # -------------------------
 # Configuration
 # -------------------------
-ADMIN_PIN = "1793"   
+ADMIN_PIN = "4312"   # CHANGE THIS
 
 # -------------------------
 # Global state
 # -------------------------
 poll_open = False
 session_closed = False
+session_closed_at = None  # unix seconds when END SESSION was pressed
 
 options = ["A", "B", "C", "D", "E"]
 counts = {k: 0 for k in options}
@@ -24,7 +26,8 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/state":
             self.respond({
                 "open": poll_open,
-                "session_closed": session_closed
+                "session_closed": session_closed,
+                "session_closed_at": session_closed_at
             })
 
         elif self.path == "/options":
@@ -34,6 +37,7 @@ class Handler(SimpleHTTPRequestHandler):
             self.respond({
                 "open": poll_open,
                 "session_closed": session_closed,
+                "session_closed_at": session_closed_at,
                 "options": options,
                 "counts": counts
             })
@@ -42,7 +46,7 @@ class Handler(SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
-        global poll_open, session_closed, options, counts, votes
+        global poll_open, session_closed, session_closed_at, options, counts, votes
 
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length) if length else b""
@@ -72,7 +76,11 @@ class Handler(SimpleHTTPRequestHandler):
                 counts = {k: 0 for k in options}
                 votes = {}
                 poll_open = False
+
+                # important: starting a new poll configuration clears "session ended"
                 session_closed = False
+                session_closed_at = None
+
                 self.respond({"ok": True})
             else:
                 self.respond({"ok": False})
@@ -80,9 +88,13 @@ class Handler(SimpleHTTPRequestHandler):
         # ---------- admin: open poll ----------
         elif self.path == "/open":
             poll_open = True
-            session_closed = False
             counts = {k: 0 for k in options}
             votes = {}
+
+            # important: opening a poll clears "session ended"
+            session_closed = False
+            session_closed_at = None
+
             self.respond({"ok": True})
 
         # ---------- admin: close poll (show results) ----------
@@ -94,6 +106,7 @@ class Handler(SimpleHTTPRequestHandler):
         elif self.path == "/end_session":
             poll_open = False
             session_closed = True
+            session_closed_at = time.time()
             self.respond({"ok": True})
 
         # ---------- student: vote ----------
@@ -108,7 +121,7 @@ class Handler(SimpleHTTPRequestHandler):
                 self.respond({"ok": False})
                 return
 
-            # one vote per browser session
+            # one vote per browser session-ish (best-effort)
             voter_id = self.client_address[0] + ":" + self.headers.get("User-Agent", "")
 
             if voter_id in votes:
