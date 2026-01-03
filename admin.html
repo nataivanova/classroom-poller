@@ -7,7 +7,7 @@
 <style>
   body {
     font-family: sans-serif;
-    max-width: 600px;
+    max-width: 700px;
     margin: 40px auto;
   }
   button {
@@ -19,7 +19,8 @@
     background: #f4f4f4;
     padding: 15px;
     margin-top: 20px;
-    font-size: 1.1em;
+    font-size: 1.05em;
+    line-height: 1.4;
   }
 </style>
 </head>
@@ -42,6 +43,10 @@
 <script>
 const statusBox = document.getElementById("status");
 
+let lastTotal = 0;
+let lastChangeTime = Date.now();
+let pollOpenTime = null;
+
 /* ---------- admin actions ---------- */
 async function setOptions(opts) {
   await fetch("/set_options", {
@@ -49,11 +54,16 @@ async function setOptions(opts) {
     headers: {"Content-Type": "application/json"},
     body: JSON.stringify({options: opts})
   });
+  pollOpenTime = null;
+  lastTotal = 0;
   updateStatus();
 }
 
 async function openPoll() {
   await fetch("/open", {method: "POST"});
+  pollOpenTime = Date.now();
+  lastTotal = 0;
+  lastChangeTime = Date.now();
   updateStatus();
 }
 
@@ -62,18 +72,49 @@ async function closePoll() {
   updateStatus();
 }
 
+/* ---------- helpers ---------- */
+function formatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+}
+
+function bar(n, max) {
+  if (max === 0) return "";
+  const width = Math.round(20 * n / max);
+  return "█".repeat(width);
+}
+
 /* ---------- status polling ---------- */
 async function updateStatus() {
   const r = await fetch("/results");
   const j = await r.json();
 
   let total = 0;
+  let max = 0;
   let lines = [];
 
   j.options.forEach(k => {
     const n = j.counts[k] || 0;
     total += n;
-    lines.push(`${k}: ${n}`);
+    if (n > max) max = n;
+  });
+
+  // freeze detection
+  if (total !== lastTotal) {
+    lastTotal = total;
+    lastChangeTime = Date.now();
+  }
+
+  const frozen = (Date.now() - lastChangeTime) > 10000; // 10 s
+  const elapsed = (j.open && pollOpenTime)
+    ? formatTime(Date.now() - pollOpenTime)
+    : "00:00";
+
+  j.options.forEach(k => {
+    const n = j.counts[k] || 0;
+    lines.push(`${k}: ${bar(n, max)} ${n}`);
   });
 
   statusBox.textContent =
@@ -81,7 +122,9 @@ async function updateStatus() {
     `Options: ${j.options.join(", ")}\n\n` +
     `Votes:\n` +
     lines.join("\n") +
-    `\n\nTotal votes: ${total}`;
+    `\n\nTotal votes: ${total}\n` +
+    `Time since open: ${elapsed}\n` +
+    `Status: ${frozen ? "FROZEN (no new votes)" : "ACTIVE"}`;
 }
 
 /* ---------- auto refresh ---------- */
