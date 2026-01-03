@@ -16,6 +16,11 @@
     text-align: center;
   }
 
+  /* Reserve space to avoid layout jump */
+  p#subtitle {
+    min-height: 1.6em;
+  }
+
   /* container for option rows */
   .option {
     display: flex;
@@ -27,7 +32,7 @@
   button.vote {
     width: 100px;
     height: 100px;
-    font-size: 2.2em;        /* same scale as admin mobile */
+    font-size: 2.2em;
     font-weight: bold;
     border: 2px solid #444;
     background: #eee;
@@ -48,12 +53,12 @@
     margin-left: 15px;
     background: #eee;
     position: relative;
-    display: none;           /* hidden while poll open */
+    display: none;
   }
 
   .barfill {
     height: 100%;
-    background: #888;        /* neutral color for all bars */
+    background: #888;   /* neutral color */
     width: 0%;
   }
 
@@ -151,7 +156,7 @@ async function pollState() {
       hideBars();
     } else {
       title.textContent = "Poll CLOSED";
-      subtitle.textContent = "";
+      subtitle.textContent = "Class results:";
       showResults();
     }
   }
