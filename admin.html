@@ -5,27 +5,10 @@
 <title>Poll Admin</title>
 
 <style>
-  body {
-    font-family: sans-serif;
-    max-width: 700px;
-    margin: 40px auto;
-  }
-  button {
-    font-size: 1.1em;
-    margin: 5px;
-    padding: 10px 15px;
-  }
-  button.active {
-    background: #2c5aa0;
-    color: white;
-  }
-  pre {
-    background: #f4f4f4;
-    padding: 15px;
-    margin-top: 20px;
-    font-size: 1.05em;
-    line-height: 1.4;
-  }
+body { font-family: sans-serif; max-width: 700px; margin: 40px auto; }
+button { font-size: 1.1em; margin: 5px; padding: 10px 15px; }
+button.active { background: #2c5aa0; color: white; }
+pre { background: #f4f4f4; padding: 15px; margin-top: 20px; }
 </style>
 </head>
 
@@ -34,90 +17,83 @@
 <h2>Poll Admin</h2>
 
 <h3>Answer options</h3>
-<button id="opt-3" onclick="setOptions(['A','B','C'])">A–B–C</button>
-<button id="opt-4" onclick="setOptions(['A','B','C','D'])">A–B–C–D</button>
-<button id="opt-5" onclick="setOptions(['A','B','C','D','E'])">A–B–C–D–E</button>
+<button id="o3" onclick="setOptions(['A','B','C'])">A–B–C</button>
+<button id="o4" onclick="setOptions(['A','B','C','D'])">A–B–C–D</button>
+<button id="o5" onclick="setOptions(['A','B','C','D','E'])">A–B–C–D–E</button>
 
 <h3>Control</h3>
-<button onclick="openPoll()">OPEN POLL</button>
-<button onclick="closePoll()">CLOSE POLL</button>
+<button onclick="openPoll()">OPEN</button>
+<button onclick="closePoll()">CLOSE</button>
 
 <h3>Status</h3>
 <pre id="status">Initializing…</pre>
 
 <script>
 const statusBox = document.getElementById("status");
-const optButtons = {
-  3: document.getElementById("opt-3"),
-  4: document.getElementById("opt-4"),
-  5: document.getElementById("opt-5")
-};
+const optBtn = {3:o3, 4:o4, 5:o5};
 
 let lastTotal = 0;
-let lastChangeTime = Date.now();
-let pollOpenTime = null;
+let lastChange = Date.now();
+let openTime = null;
 
 async function setOptions(opts) {
   await fetch("/set_options", {
-    method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({options: opts})
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify({options:opts})
   });
-  pollOpenTime = null;
-  lastTotal = 0;
-  updateStatus();
+  openTime = null;
 }
 
 async function openPoll() {
-  await fetch("/open", {method:"POST"});
-  pollOpenTime = Date.now();
-  lastChangeTime = Date.now();
+  await fetch("/open",{method:"POST"});
+  openTime = Date.now();
+  lastChange = Date.now();
 }
 
 async function closePoll() {
-  await fetch("/close", {method:"POST"});
+  await fetch("/close",{method:"POST"});
 }
 
-function formatTime(ms) {
-  const s = Math.floor(ms/1000);
-  return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+function fmt(ms){
+  const s=Math.floor(ms/1000);
+  return `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
 }
 
-async function updateStatus() {
+async function update() {
   const r = await fetch("/results");
   const j = await r.json();
 
-  Object.values(optButtons).forEach(b => b.classList.remove("active"));
-  optButtons[j.options.length].classList.add("active");
+  Object.values(optBtn).forEach(b=>b.classList.remove("active"));
+  optBtn[j.options.length].classList.add("active");
 
-  let total = 0;
-  let max = 0;
-  j.options.forEach(k => {
-    total += j.counts[k];
-    max = Math.max(max, j.counts[k]);
+  let total=0,max=0;
+  j.options.forEach(o=>{
+    total+=j.counts[o];
+    max=Math.max(max,j.counts[o]);
   });
 
-  if (total !== lastTotal) {
-    lastTotal = total;
-    lastChangeTime = Date.now();
+  if (total!==lastTotal){
+    lastTotal=total;
+    lastChange=Date.now();
   }
 
-  const frozen = Date.now() - lastChangeTime > 10000;
-  const elapsed = (j.open && pollOpenTime) ? formatTime(Date.now()-pollOpenTime) : "00:00";
+  const frozen = Date.now()-lastChange>10000;
+  const elapsed = (j.open && openTime)?fmt(Date.now()-openTime):"00:00";
 
-  let lines = j.options.map(k => `${k}: ${"█".repeat(max ? Math.round(20*j.counts[k]/max) : 0)} ${j.counts[k]}`);
+  let lines=j.options.map(o=>`${o}: ${"█".repeat(max?Math.round(20*j.counts[o]/max):0)} ${j.counts[o]}`);
 
   statusBox.textContent =
-    `Poll: ${j.open ? "OPEN" : "CLOSED"}\n` +
-    `Options: ${j.options.join(", ")}\n\n` +
-    `Votes:\n${lines.join("\n")}\n\n` +
-    `Total votes: ${total}\n` +
-    `Time since open: ${elapsed}\n` +
-    `Status: ${frozen ? "FROZEN" : "ACTIVE"}`;
+    `Poll: ${j.open?"OPEN":"CLOSED"}\n`+
+    `Options: ${j.options.join(", ")}\n\n`+
+    `Votes:\n${lines.join("\n")}\n\n`+
+    `Total votes: ${total}\n`+
+    `Time since open: ${elapsed}\n`+
+    `Status: ${frozen?"FROZEN":"ACTIVE"}`;
 }
 
-updateStatus();
-setInterval(updateStatus, 1000);
+update();
+setInterval(update,1000);
 </script>
 
 </body>
