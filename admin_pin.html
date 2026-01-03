@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poll Admin (PIN)</title>
+
+<style>
+  body {
+    font-family: sans-serif;
+    max-width: 600px;
+    margin: 20px auto;
+    text-align: center;
+  }
+
+  button {
+    font-size: 2em;
+    padding: 15px;
+    margin: 10px 0;
+    width: 100%;
+  }
+
+  button.danger {
+    background: #a00;
+    color: white;
+  }
+
+  input {
+    font-size: 2em;
+    text-align: center;
+    width: 120px;
+  }
+
+  #admin-ui {
+    display: none;
+  }
+</style>
+</head>
+
+<body>
+
+<div id="pin-ui">
+  <h2>Admin PIN</h2>
+  <input id="pin" type="password" maxlength="6">
+  <br><br>
+  <button onclick="auth()">Enter</button>
+  <p id="msg"></p>
+</div>
+
+<div id="admin-ui">
+
+  <h2>Start Poll</h2>
+
+  <button onclick="startPoll(['A','B','C'])">A–B–C</button>
+  <button onclick="startPoll(['A','B','C','D'])">A–B–C–D</button>
+  <button onclick="startPoll(['A','B','C','D','E'])">A–B–C–D–E</button>
+
+  <h2>End</h2>
+
+  <button class="danger" onclick="endSession()">
+    END SESSION
+  </button>
+
+</div>
+
+<script>
+async function auth() {
+  const pin = document.getElementById("pin").value;
+  const r = await fetch("/admin_auth", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({pin})
+  });
+  const j = await r.json();
+
+  if (j.ok) {
+    document.getElementById("pin-ui").style.display = "none";
+    document.getElementById("admin-ui").style.display = "block";
+  } else {
+    document.getElementById("msg").textContent = "Wrong PIN";
+  }
+}
+
+async function startPoll(opts) {
+  await fetch("/set_options", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({options: opts})
+  });
+  await fetch("/open", {method: "POST"});
+}
+
+async function endSession() {
+  await fetch("/end_session", {method: "POST"});
+  alert("Session closed. Students will see final message.");
+}
+</script>
+
+</body>
+</html>
