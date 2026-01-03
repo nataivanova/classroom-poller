@@ -24,18 +24,21 @@
 
 <body>
 
-<h2 id="title">Waiting for poll…</h2>
+<h2 id="title">Welcome</h2>
+<p id="subtitle">Please wait for the poll to open.</p>
 
-<div id="buttons"></div>
+<div id="buttons" style="display:none;"></div>
 
 <pre id="output"></pre>
 
 <script>
-const title   = document.getElementById("title");
-const buttons = document.getElementById("buttons");
-const output  = document.getElementById("output");
+const title    = document.getElementById("title");
+const subtitle = document.getElementById("subtitle");
+const buttons  = document.getElementById("buttons");
+const output   = document.getElementById("output");
 
 let lastOpen = null;
+let hasSeenOpen = false;
 
 /* ---------- load allowed options ---------- */
 async function loadOptions() {
@@ -51,7 +54,7 @@ async function loadOptions() {
   });
 }
 
-/* ---------- poll open/closed state ---------- */
+/* ---------- state polling ---------- */
 async function pollState() {
   const r = await fetch("/state");
   const j = await r.json();
@@ -60,22 +63,37 @@ async function pollState() {
     lastOpen = j.open;
 
     if (j.open) {
+      // poll just opened
+      hasSeenOpen = true;
       title.textContent = "Voting OPEN";
+      subtitle.textContent = "Please select your answer.";
       output.textContent = "";
       buttons.style.display = "block";
+
     } else {
-      showResults();
+      // poll is closed
+      buttons.style.display = "none";
+
+      if (hasSeenOpen) {
+        // show results only if this session saw the poll open
+        showResults();
+      } else {
+        // fresh load before poll opens
+        title.textContent = "Welcome";
+        subtitle.textContent = "Please wait for the poll to open.";
+        output.textContent = "";
+      }
     }
   }
 }
 
-/* ---------- show results after close ---------- */
+/* ---------- show results ---------- */
 async function showResults() {
   const r = await fetch("/results");
   const j = await r.json();
 
-  title.textContent = "RESULTS";
-  buttons.style.display = "none";
+  title.textContent = "Results";
+  subtitle.textContent = "";
 
   let text = "";
   j.options.forEach(k => {
@@ -93,7 +111,7 @@ async function vote(letter) {
   });
 }
 
-/* ---------- initialization ---------- */
+/* ---------- init ---------- */
 loadOptions();
 pollState();
 setInterval(pollState, 1000);
