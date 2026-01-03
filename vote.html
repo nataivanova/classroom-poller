@@ -30,12 +30,8 @@
     text-align: left;
     display: inline-block;
   }
-  .bar {
-    color: #444;
-  }
-  .bar.mine {
-    color: #c0392b; /* red for own vote */
-  }
+  .bar { color: #444; }
+  .bar.mine { color: #c0392b; }
 </style>
 </head>
 
@@ -57,7 +53,9 @@ const output   = document.getElementById("output");
 let lastOpen = null;
 let hasSeenOpen = false;
 let myVote = null;
+let currentOptions = [];
 
+/* ---------- helpers ---------- */
 function bar(n, max) {
   if (max === 0) return "";
   return "█".repeat(Math.round(20 * n / max));
@@ -69,20 +67,37 @@ function updateButtonStyles() {
   );
 }
 
-async function loadOptions() {
+/* ---------- sync options ---------- */
+async function syncOptions() {
   const r = await fetch("/options");
   const j = await r.json();
 
+  // detect change
+  if (JSON.stringify(j.options) === JSON.stringify(currentOptions)) return;
+
+  currentOptions = j.options.slice();
+
+  // clear invalid vote
+  if (!currentOptions.includes(myVote)) {
+    myVote = null;
+  }
+
+  // rebuild buttons
   buttons.innerHTML = "";
-  j.options.forEach(letter => {
+  currentOptions.forEach(letter => {
     const b = document.createElement("button");
     b.textContent = letter;
     b.onclick = () => vote(letter);
     buttons.appendChild(b);
   });
+
+  updateButtonStyles();
 }
 
+/* ---------- poll state ---------- */
 async function pollState() {
+  await syncOptions();
+
   const r = await fetch("/state");
   const j = await r.json();
 
@@ -108,6 +123,7 @@ async function pollState() {
   }
 }
 
+/* ---------- show results ---------- */
 async function showResults() {
   const r = await fetch("/results");
   const j = await r.json();
@@ -126,9 +142,11 @@ async function showResults() {
   output.innerHTML = text;
 }
 
+/* ---------- submit vote ---------- */
 async function vote(letter) {
   myVote = letter;
   updateButtonStyles();
+
   await fetch("/vote", {
     method: "POST",
     headers: {"Content-Type": "application/json"},
@@ -136,7 +154,7 @@ async function vote(letter) {
   });
 }
 
-loadOptions();
+/* ---------- init ---------- */
 pollState();
 setInterval(pollState, 1000);
 </script>
