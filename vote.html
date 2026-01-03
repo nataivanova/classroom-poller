@@ -21,12 +21,16 @@
     min-height: 1.6em;
   }
 
+  /* option row */
   .option {
     display: flex;
     align-items: center;
-    margin: 12px 0;
+    margin: 14px 0;
+    padding-left: 10%;    /* left empty space */
+    padding-right: 10%;   /* right empty space */
   }
 
+  /* voting buttons */
   button.vote {
     width: 100px;
     height: 100px;
@@ -44,11 +48,12 @@
     border-color: #2c5aa0;
   }
 
+  /* result bar container */
   .barbox {
     flex-grow: 1;
-    height: 28px;
-    margin-left: 15px;
-    background: #eee;
+    height: 42px;          /* thicker bars */
+    margin-left: 18px;
+    background: #e0e0e0;
     position: relative;
     display: none;
   }
@@ -61,9 +66,11 @@
 
   .count {
     position: absolute;
-    right: 6px;
-    top: 2px;
-    font-size: 1em;
+    right: 10px;
+    top: 6px;
+    font-size: 1.4em;     /* larger font */
+    font-weight: bold;
+    color: #000;
   }
 </style>
 </head>
