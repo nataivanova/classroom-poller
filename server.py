@@ -1,10 +1,10 @@
 from http.server import HTTPServer, SimpleHTTPRequestHandler
 import json
 import uuid
+import os
 
 poll_open = False
-options = ["A","B","C","D","E"]
-
+options = ["A", "B", "C", "D", "E"]
 counts = {k: 0 for k in options}
 votes = {}   # voter_id -> letter
 
@@ -122,5 +122,6 @@ class Handler(SimpleHTTPRequestHandler):
         self.wfile.write(body)
 
 if __name__ == "__main__":
-    print("Poll server running on http://localhost:8000")
-    HTTPServer(("localhost", 8000), Handler).serve_forever()
+    port = int(os.environ.get("PORT", 8000))
+    print(f"Poll server running on 0.0.0.0:{port}")
+    HTTPServer(("0.0.0.0", port), Handler).serve_forever()
