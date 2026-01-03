@@ -5,17 +5,33 @@
 <title>Vote</title>
 
 <style>
-body { font-family: sans-serif; text-align: center; margin-top: 60px; }
-button {
-  font-size: 2.5em; margin: 10px; padding: 20px 30px;
-  border: 2px solid #444; background: #eee; cursor: pointer;
-}
-button.selected {
-  background: #4a90e2; color: white; border-color: #2c5aa0;
-}
-pre { font-size: 1.4em; margin-top: 30px; text-align: left; display: inline-block; }
-.bar { color: #444; }
-.bar.mine { color: #c0392b; }
+  body {
+    font-family: sans-serif;
+    text-align: center;
+    margin-top: 60px;
+  }
+  button {
+    font-size: 2.5em;
+    margin: 10px;
+    padding: 20px 30px;
+    border: 2px solid #444;
+    background: #eee;
+    cursor: pointer;
+  }
+  button.selected {
+    background: #4a90e2;
+    color: white;
+    border-color: #2c5aa0;
+  }
+  pre {
+    font-size: 1.4em;
+    margin-top: 30px;
+    line-height: 1.4;
+    text-align: left;
+    display: inline-block;
+  }
+  .bar { color: #444; }
+  .bar.mine { color: #c0392b; }
 </style>
 </head>
 
@@ -25,33 +41,28 @@ pre { font-size: 1.4em; margin-top: 30px; text-align: left; display: inline-bloc
 <p id="subtitle">Please wait for the poll to open.</p>
 
 <div id="buttons" style="display:none;"></div>
+
 <pre id="output"></pre>
 
 <script>
-const title = document.getElementById("title");
+const title    = document.getElementById("title");
 const subtitle = document.getElementById("subtitle");
-const buttons = document.getElementById("buttons");
-const output = document.getElementById("output");
+const buttons  = document.getElementById("buttons");
+const output   = document.getElementById("output");
 
 let lastOpen = null;
 let hasSeenOpen = false;
 let myVote = null;
 let currentOptions = [];
 
-/* ---------- device identity ---------- */
-let deviceId = localStorage.getItem("device_id");
-if (!deviceId) {
-  deviceId = crypto.randomUUID();
-  localStorage.setItem("device_id", deviceId);
-}
-
 /* ---------- helpers ---------- */
 function bar(n, max) {
-  if (!max) return "";
+  if (max === 0) return "";
   return "█".repeat(Math.round(20 * n / max));
 }
+
 function updateButtonStyles() {
-  [...buttons.children].forEach(b =>
+  Array.from(buttons.children).forEach(b =>
     b.classList.toggle("selected", b.textContent === myVote)
   );
 }
@@ -61,18 +72,25 @@ async function syncOptions() {
   const r = await fetch("/options");
   const j = await r.json();
 
+  // detect change
   if (JSON.stringify(j.options) === JSON.stringify(currentOptions)) return;
 
   currentOptions = j.options.slice();
-  if (!currentOptions.includes(myVote)) myVote = null;
 
+  // clear invalid vote
+  if (!currentOptions.includes(myVote)) {
+    myVote = null;
+  }
+
+  // rebuild buttons
   buttons.innerHTML = "";
-  currentOptions.forEach(l => {
+  currentOptions.forEach(letter => {
     const b = document.createElement("button");
-    b.textContent = l;
-    b.onclick = () => vote(l);
+    b.textContent = letter;
+    b.onclick = () => vote(letter);
     buttons.appendChild(b);
   });
+
   updateButtonStyles();
 }
 
@@ -85,12 +103,14 @@ async function pollState() {
 
   if (j.open !== lastOpen) {
     lastOpen = j.open;
+
     if (j.open) {
       hasSeenOpen = true;
       title.textContent = "Voting OPEN";
       subtitle.textContent = "Select your answer.";
       output.textContent = "";
       buttons.style.display = "block";
+      updateButtonStyles();
     } else {
       buttons.style.display = "none";
       if (hasSeenOpen) showResults();
@@ -103,7 +123,7 @@ async function pollState() {
   }
 }
 
-/* ---------- results ---------- */
+/* ---------- show results ---------- */
 async function showResults() {
   const r = await fetch("/results");
   const j = await r.json();
@@ -111,26 +131,30 @@ async function showResults() {
   title.textContent = "Results";
   subtitle.textContent = "";
 
-  const max = Math.max(...j.options.map(o => j.counts[o]));
+  let max = Math.max(...j.options.map(k => j.counts[k]));
   let text = "";
-  j.options.forEach(o => {
-    const cls = (o === myVote) ? "bar mine" : "bar";
-    text += `${o}: <span class="${cls}">${bar(j.counts[o], max)}</span> ${j.counts[o]}\n`;
+
+  j.options.forEach(k => {
+    const cls = (k === myVote) ? "bar mine" : "bar";
+    text += `${k}: <span class="${cls}">${bar(j.counts[k], max)}</span> ${j.counts[k]}\n`;
   });
+
   output.innerHTML = text;
 }
 
-/* ---------- vote ---------- */
+/* ---------- submit vote ---------- */
 async function vote(letter) {
   myVote = letter;
   updateButtonStyles();
+
   await fetch("/vote", {
     method: "POST",
-    headers: {"Content-Type":"application/json"},
-    body: JSON.stringify({letter, device_id: deviceId})
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({letter})
   });
 }
 
+/* ---------- init ---------- */
 pollState();
 setInterval(pollState, 1000);
 </script>
