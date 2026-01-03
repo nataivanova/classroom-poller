@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Poll Admin</title>
+<style>
+  body { font-family: sans-serif; margin: 40px; }
+  button { font-size: 1.1em; margin-right: 10px; padding: 10px 20px; }
+  pre { background:#f4f4f4; padding:15px; margin-top:20px; }
+  .error { color: red; font-weight: bold; }
+</style>
+</head>
+
+<body>
+
+<div style="color:red; font-size:20px; font-weight:bold;">
+ADMIN FILE MARKER — FINAL DEBUG
+</div>
+
+<h2>Poll Admin</h2>
+
+<h3>Answer options</h3>
+<button onclick="setOptions(['A','B','C','D'])">A–D</button>
+<button onclick="setOptions(['A','B','C','D','E'])">A–E</button>
+
+<button onclick="openPoll()">OPEN POLL</button>
+<button onclick="closePoll()">CLOSE + SHOW RESULTS</button>
+
+<h3>Status</h3>
+<pre id="out">Initializing…</pre>
+
+<h3>Diagnostics</h3>
+<pre id="diag">No activity yet.</pre>
+
+<script>
+const out  = document.getElementById("out");
+const diag = document.getElementById("diag");
+
+function log(msg) {
+  diag.textContent += msg + "\n";
+}
+
+async function setOptions(opts) {
+  await fetch("/set_options", {
+    method: "POST",
+    headers: {"Content-Type":"application/json"},
+    body: JSON.stringify({options: opts})
+  });
+  out.textContent = "Options set to: " + opts.join(", ");
+}
+  
+async function refresh() {
+  try {
+    log("Calling GET /state …");
+    const r = await fetch("/state");   // <-- GET, not POST
+    log("Response status: " + r.status);
+
+    const j = await r.json();
+    log("Parsed JSON: " + JSON.stringify(j));
+
+    out.textContent = j.open
+      ? "Poll OPEN.\nResults hidden."
+      : "Poll CLOSED.";
+
+  } catch (e) {
+    out.textContent = "ERROR (see diagnostics)";
+    log("ERROR: " + e.toString());
+  }
+}
+
+async function openPoll() {
+  try {
+    log("Calling POST /open …");
+    const r = await fetch("/open", { method: "POST" });
+    log("POST /open status: " + r.status);
+    await refresh();
+  } catch (e) {
+    log("ERROR in openPoll: " + e.toString());
+  }
+}
+
+async function closePoll() {
+  try {
+    log("Calling POST /close …");
+    const r = await fetch("/close", { method: "POST" });
+    const j = await r.json();
+
+    let t = "FINAL RESULTS\n\n";
+    for (const k in j.counts) t += `${k}: ${j.counts[k]}\n`;
+    out.textContent = t;
+
+  } catch (e) {
+    log("ERROR in closePoll: " + e.toString());
+  }
+}
+
+// run once on load
+refresh();
+</script>
+
+</body>
+</html>

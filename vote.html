@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Vote</title>
+
+<style>
+  body {
+    font-family: sans-serif;
+    text-align: center;
+    margin-top: 60px;
+  }
+  button {
+    font-size: 2.5em;
+    margin: 10px;
+    padding: 20px 30px;
+  }
+  pre {
+    font-size: 1.5em;
+    margin-top: 30px;
+  }
+</style>
+</head>
+
+<body>
+
+<h2 id="title">Waiting for poll…</h2>
+
+<div id="buttons"></div>
+
+<pre id="output"></pre>
+
+<script>
+const title   = document.getElementById("title");
+const buttons = document.getElementById("buttons");
+const output  = document.getElementById("output");
+
+let lastOpen = null;
+
+/* ---------- load allowed options ---------- */
+async function loadOptions() {
+  const r = await fetch("/options");
+  const j = await r.json();
+
+  buttons.innerHTML = "";
+  j.options.forEach(letter => {
+    const b = document.createElement("button");
+    b.textContent = letter;
+    b.onclick = () => vote(letter);
+    buttons.appendChild(b);
+  });
+}
+
+/* ---------- poll open/closed state ---------- */
+async function pollState() {
+  const r = await fetch("/state");
+  const j = await r.json();
+
+  if (j.open !== lastOpen) {
+    lastOpen = j.open;
+
+    if (j.open) {
+      title.textContent = "Voting OPEN";
+      output.textContent = "";
+      buttons.style.display = "block";
+    } else {
+      showResults();
+    }
+  }
+}
+
+/* ---------- show results after close ---------- */
+async function showResults() {
+  const r = await fetch("/results");
+  const j = await r.json();
+
+  title.textContent = "RESULTS";
+  buttons.style.display = "none";
+
+  let text = "";
+  j.options.forEach(k => {
+    text += `${k}: ${j.counts[k]}\n`;
+  });
+  output.textContent = text;
+}
+
+/* ---------- submit vote ---------- */
+async function vote(letter) {
+  await fetch("/vote", {
+    method: "POST",
+    headers: {"Content-Type": "application/json"},
+    body: JSON.stringify({letter})
+  });
+}
+
+/* ---------- initialization ---------- */
+loadOptions();
+pollState();
+setInterval(pollState, 1000);
+</script>
+
+</body>
+</html>
