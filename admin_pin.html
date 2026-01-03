@@ -8,16 +8,27 @@
 <style>
   body {
     font-family: sans-serif;
-    max-width: 600px;
+    max-width: 700px;
     margin: 20px auto;
     text-align: center;
   }
 
-  button {
+  input {
     font-size: 2em;
-    padding: 15px;
-    margin: 10px 0;
+    width: 120px;
+    text-align: center;
+  }
+
+  button {
+    font-size: 1.8em;
+    padding: 14px;
+    margin: 8px 0;
     width: 100%;
+  }
+
+  button.active {
+    background: #2c5aa0;
+    color: white;
   }
 
   button.danger {
@@ -25,20 +36,34 @@
     color: white;
   }
 
-  input {
-    font-size: 2em;
-    text-align: center;
-    width: 120px;
+  pre {
+    text-align: left;
+    background: #f4f4f4;
+    padding: 14px;
+    font-size: 1.2em;
+    line-height: 1.35;
+    margin-top: 15px;
   }
 
   #admin-ui {
     display: none;
+  }
+
+  @media (pointer: coarse) and (max-width: 900px) {
+    button {
+      font-size: 1.9em;
+      padding: 16px;
+    }
+    pre {
+      font-size: 1.35em;
+    }
   }
 </style>
 </head>
 
 <body>
 
+<!-- ---------- PIN GATE ---------- -->
 <div id="pin-ui">
   <h2>Admin PIN</h2>
   <input id="pin" type="password" maxlength="6">
@@ -47,23 +72,29 @@
   <p id="msg"></p>
 </div>
 
+<!-- ---------- ADMIN UI ---------- -->
 <div id="admin-ui">
 
   <h2>Start Poll</h2>
 
-  <button onclick="startPoll(['A','B','C'])">A–B–C</button>
-  <button onclick="startPoll(['A','B','C','D'])">A–B–C–D</button>
-  <button onclick="startPoll(['A','B','C','D','E'])">A–B–C–D–E</button>
+  <button id="opt-3" onclick="startPoll(['A','B','C'])">A–B–C</button>
+  <button id="opt-4" onclick="startPoll(['A','B','C','D'])">A–B–C–D</button>
+  <button id="opt-5" onclick="startPoll(['A','B','C','D','E'])">A–B–C–D–E</button>
 
-  <h2>End</h2>
+  <button onclick="closePoll()">CLOSE POLL</button>
 
-  <button class="danger" onclick="endSession()">
-    END SESSION
-  </button>
+  <pre id="status">Initializing…</pre>
+
+  <button class="danger" onclick="endSession()">END SESSION</button>
 
 </div>
 
 <script>
+let pollOpenTime = null;
+let lastTotal = 0;
+let lastChangeTime = Date.now();
+
+/* ---------- PIN AUTH ---------- */
 async function auth() {
   const pin = document.getElementById("pin").value;
   const r = await fetch("/admin_auth", {
@@ -76,24 +107,100 @@ async function auth() {
   if (j.ok) {
     document.getElementById("pin-ui").style.display = "none";
     document.getElementById("admin-ui").style.display = "block";
+    updateStatus();
   } else {
     document.getElementById("msg").textContent = "Wrong PIN";
   }
 }
 
+/* ---------- ADMIN ACTIONS ---------- */
 async function startPoll(opts) {
   await fetch("/set_options", {
     method: "POST",
     headers: {"Content-Type":"application/json"},
     body: JSON.stringify({options: opts})
   });
+
   await fetch("/open", {method: "POST"});
+
+  pollOpenTime = Date.now();
+  lastTotal = 0;
+  lastChangeTime = Date.now();
+  updateStatus();
+}
+
+async function closePoll() {
+  await fetch("/close", {method: "POST"});
+  updateStatus();
 }
 
 async function endSession() {
   await fetch("/end_session", {method: "POST"});
-  alert("Session closed. Students will see final message.");
+  alert("Session ended. Students will see final message.");
+  updateStatus();
 }
+
+/* ---------- HELPERS ---------- */
+function formatTime(ms) {
+  const s = Math.floor(ms / 1000);
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${String(m).padStart(2,'0')}:${String(r).padStart(2,'0')}`;
+}
+
+function bar(n, max) {
+  if (max === 0) return "";
+  return "█".repeat(Math.round(18 * n / max));
+}
+
+/* ---------- STATUS ---------- */
+async function updateStatus() {
+  const r = await fetch("/results");
+  const j = await r.json();
+
+  document.querySelectorAll("button[id^='opt-']")
+    .forEach(b => b.classList.remove("active"));
+
+  if (j.open) {
+    const len = j.options.length;
+    const btn = document.getElementById("opt-" + len);
+    if (btn) btn.classList.add("active");
+  }
+
+  let total = 0;
+  let max = 0;
+  j.options.forEach(o => {
+    total += j.counts[o];
+    max = Math.max(max, j.counts[o]);
+  });
+
+  if (total !== lastTotal) {
+    lastTotal = total;
+    lastChangeTime = Date.now();
+  }
+
+  const frozen = (Date.now() - lastChangeTime) > 10000;
+  const elapsed = (j.open && pollOpenTime)
+    ? formatTime(Date.now() - pollOpenTime)
+    : "00:00";
+
+  const lines = j.options.map(
+    o => `${o}: ${bar(j.counts[o], max)} ${j.counts[o]}`
+  );
+
+  document.getElementById("status").textContent =
+    `Poll: ${j.session_closed ? "SESSION ENDED"
+          : j.open ? "OPEN" : "CLOSED"}\n` +
+    `Options: ${j.options.join(", ")}\n\n` +
+    `Votes:\n${lines.join("\n")}\n\n` +
+    `Total votes: ${total}\n` +
+    `Time since open: ${elapsed}\n` +
+    `Status: ${frozen ? "FROZEN" : "ACTIVE"}`;
+}
+
+/* ---------- AUTO UPDATE ---------- */
+updateStatus();
+setInterval(updateStatus, 1000);
 </script>
 
 </body>
