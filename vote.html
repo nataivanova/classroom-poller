@@ -2,36 +2,68 @@
 <html>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Vote</title>
 
 <style>
   body {
     font-family: sans-serif;
-    text-align: center;
-    margin-top: 60px;
+    margin: 20px auto;
+    max-width: 600px;
   }
-  button {
-    font-size: 2.5em;
-    margin: 10px;
-    padding: 20px 30px;
+
+  h2, p {
+    text-align: center;
+  }
+
+  /* container for option rows */
+  .option {
+    display: flex;
+    align-items: center;
+    margin: 12px 0;
+  }
+
+  /* voting buttons */
+  button.vote {
+    width: 100px;
+    height: 100px;
+    font-size: 2.2em;        /* same scale as admin mobile */
+    font-weight: bold;
     border: 2px solid #444;
     background: #eee;
     cursor: pointer;
+    flex-shrink: 0;
   }
-  button.selected {
+
+  button.vote.selected {
     background: #4a90e2;
     color: white;
     border-color: #2c5aa0;
   }
-  pre {
-    font-size: 1.4em;
-    margin-top: 30px;
-    line-height: 1.4;
-    text-align: left;
-    display: inline-block;
+
+  /* result bar container */
+  .barbox {
+    flex-grow: 1;
+    height: 28px;
+    margin-left: 15px;
+    background: #eee;
+    position: relative;
+    display: none;           /* hidden while poll open */
   }
-  .bar { color: #444; }
-  .bar.mine { color: #c0392b; }
+
+  .barfill {
+    height: 100%;
+    background: #888;        /* neutral color for all bars */
+    width: 0%;
+  }
+
+  .count {
+    position: absolute;
+    right: 6px;
+    top: 2px;
+    font-size: 1em;
+    color: #000;
+  }
 </style>
 </head>
 
@@ -40,31 +72,56 @@
 <h2 id="title">Welcome</h2>
 <p id="subtitle">Please wait for the poll to open.</p>
 
-<div id="buttons" style="display:none;"></div>
-
-<pre id="output"></pre>
+<div id="options"></div>
 
 <script>
-const title    = document.getElementById("title");
+const title = document.getElementById("title");
 const subtitle = document.getElementById("subtitle");
-const buttons  = document.getElementById("buttons");
-const output   = document.getElementById("output");
+const optionsDiv = document.getElementById("options");
 
-let lastOpen = null;
-let hasSeenOpen = false;
-let myVote = null;
 let currentOptions = [];
+let myVote = null;
+let pollOpen = null;
 
-/* ---------- helpers ---------- */
-function bar(n, max) {
-  if (max === 0) return "";
-  return "█".repeat(Math.round(20 * n / max));
+/* ---------- build option rows ---------- */
+function buildOptions(opts) {
+  optionsDiv.innerHTML = "";
+  currentOptions = opts.slice();
+
+  opts.forEach(letter => {
+    const row = document.createElement("div");
+    row.className = "option";
+
+    const btn = document.createElement("button");
+    btn.className = "vote";
+    btn.textContent = letter;
+    btn.onclick = () => vote(letter);
+
+    const barbox = document.createElement("div");
+    barbox.className = "barbox";
+
+    const barfill = document.createElement("div");
+    barfill.className = "barfill";
+
+    const count = document.createElement("div");
+    count.className = "count";
+
+    barbox.appendChild(barfill);
+    barbox.appendChild(count);
+
+    row.appendChild(btn);
+    row.appendChild(barbox);
+    optionsDiv.appendChild(row);
+  });
+
+  updateButtonStyles();
 }
 
+/* ---------- helpers ---------- */
 function updateButtonStyles() {
-  Array.from(buttons.children).forEach(b =>
-    b.classList.toggle("selected", b.textContent === myVote)
-  );
+  document.querySelectorAll("button.vote").forEach(b => {
+    b.classList.toggle("selected", b.textContent === myVote);
+  });
 }
 
 /* ---------- sync options ---------- */
@@ -72,26 +129,10 @@ async function syncOptions() {
   const r = await fetch("/options");
   const j = await r.json();
 
-  // detect change
-  if (JSON.stringify(j.options) === JSON.stringify(currentOptions)) return;
-
-  currentOptions = j.options.slice();
-
-  // clear invalid vote
-  if (!currentOptions.includes(myVote)) {
-    myVote = null;
+  if (JSON.stringify(j.options) !== JSON.stringify(currentOptions)) {
+    if (!j.options.includes(myVote)) myVote = null;
+    buildOptions(j.options);
   }
-
-  // rebuild buttons
-  buttons.innerHTML = "";
-  currentOptions.forEach(letter => {
-    const b = document.createElement("button");
-    b.textContent = letter;
-    b.onclick = () => vote(letter);
-    buttons.appendChild(b);
-  });
-
-  updateButtonStyles();
 }
 
 /* ---------- poll state ---------- */
@@ -101,26 +142,26 @@ async function pollState() {
   const r = await fetch("/state");
   const j = await r.json();
 
-  if (j.open !== lastOpen) {
-    lastOpen = j.open;
+  if (j.open !== pollOpen) {
+    pollOpen = j.open;
 
-    if (j.open) {
-      hasSeenOpen = true;
+    if (pollOpen) {
       title.textContent = "Voting OPEN";
       subtitle.textContent = "Select your answer.";
-      output.textContent = "";
-      buttons.style.display = "block";
-      updateButtonStyles();
+      hideBars();
     } else {
-      buttons.style.display = "none";
-      if (hasSeenOpen) showResults();
-      else {
-        title.textContent = "Welcome";
-        subtitle.textContent = "Please wait for the poll to open.";
-        output.textContent = "";
-      }
+      title.textContent = "Poll CLOSED";
+      subtitle.textContent = "";
+      showResults();
     }
   }
+}
+
+/* ---------- hide bars ---------- */
+function hideBars() {
+  document.querySelectorAll(".barbox").forEach(b => {
+    b.style.display = "none";
+  });
 }
 
 /* ---------- show results ---------- */
@@ -128,21 +169,25 @@ async function showResults() {
   const r = await fetch("/results");
   const j = await r.json();
 
-  title.textContent = "Results";
-  subtitle.textContent = "";
+  let max = 0;
+  j.options.forEach(o => max = Math.max(max, j.counts[o]));
 
-  let max = Math.max(...j.options.map(k => j.counts[k]));
-  let text = "";
+  document.querySelectorAll(".option").forEach(row => {
+    const letter = row.querySelector("button").textContent;
+    const barbox = row.querySelector(".barbox");
+    const barfill = row.querySelector(".barfill");
+    const count = row.querySelector(".count");
 
-  j.options.forEach(k => {
-    const cls = (k === myVote) ? "bar mine" : "bar";
-    text += `${k}: <span class="${cls}">${bar(j.counts[k], max)}</span> ${j.counts[k]}\n`;
+    const n = j.counts[letter] || 0;
+    const pct = max ? Math.round(100 * n / max) : 0;
+
+    barfill.style.width = pct + "%";
+    count.textContent = n;
+    barbox.style.display = "block";
   });
-
-  output.innerHTML = text;
 }
 
-/* ---------- submit vote ---------- */
+/* ---------- vote ---------- */
 async function vote(letter) {
   myVote = letter;
   updateButtonStyles();
