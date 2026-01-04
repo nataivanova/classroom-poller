@@ -6,7 +6,7 @@ import time
 # -------------------------
 # Configuration
 # -------------------------
-ADMIN_PIN = "4312"   # CHANGE THIS
+ADMIN_PIN = "1793"   # CHANGE THIS
 
 # -------------------------
 # Global state
