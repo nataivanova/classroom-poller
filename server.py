@@ -6,18 +6,19 @@ import time
 # -------------------------
 # Configuration
 # -------------------------
-ADMIN_PIN = "1793"   # CHANGE THIS
+ADMIN_PIN = "4312"   # CHANGE THIS
 
 # -------------------------
 # Global state
 # -------------------------
 poll_open = False
+poll_started = False          # False until /open has been used at least once
 session_closed = False
-session_closed_at = None  # unix seconds when END SESSION was pressed
+session_closed_at = None      # unix seconds when END SESSION was pressed
 
 options = ["A", "B", "C", "D", "E"]
 counts = {k: 0 for k in options}
-votes = {}   # voter_id -> letter
+votes = {}                    # voter_id -> letter
 
 
 class Handler(SimpleHTTPRequestHandler):
@@ -26,6 +27,7 @@ class Handler(SimpleHTTPRequestHandler):
         if self.path == "/state":
             self.respond({
                 "open": poll_open,
+                "poll_started": poll_started,
                 "session_closed": session_closed,
                 "session_closed_at": session_closed_at
             })
@@ -36,6 +38,7 @@ class Handler(SimpleHTTPRequestHandler):
         elif self.path == "/results":
             self.respond({
                 "open": poll_open,
+                "poll_started": poll_started,
                 "session_closed": session_closed,
                 "session_closed_at": session_closed_at,
                 "options": options,
@@ -46,7 +49,7 @@ class Handler(SimpleHTTPRequestHandler):
             super().do_GET()
 
     def do_POST(self):
-        global poll_open, session_closed, session_closed_at, options, counts, votes
+        global poll_open, poll_started, session_closed, session_closed_at, options, counts, votes
 
         length = int(self.headers.get("Content-Length", 0))
         raw = self.rfile.read(length) if length else b""
@@ -75,9 +78,11 @@ class Handler(SimpleHTTPRequestHandler):
                 options = payload["options"]
                 counts = {k: 0 for k in options}
                 votes = {}
-                poll_open = False
 
-                # important: starting a new poll configuration clears "session ended"
+                poll_open = False
+                # Do NOT force poll_started True here; only /open means "started"
+                poll_started = False
+
                 session_closed = False
                 session_closed_at = None
 
@@ -88,10 +93,11 @@ class Handler(SimpleHTTPRequestHandler):
         # ---------- admin: open poll ----------
         elif self.path == "/open":
             poll_open = True
+            poll_started = True
+
             counts = {k: 0 for k in options}
             votes = {}
 
-            # important: opening a poll clears "session ended"
             session_closed = False
             session_closed_at = None
 
@@ -116,12 +122,11 @@ class Handler(SimpleHTTPRequestHandler):
                 return
 
             letter = payload.get("letter")
-
             if not poll_open or letter not in options:
                 self.respond({"ok": False})
                 return
 
-            # one vote per browser session-ish (best-effort)
+            # best-effort: one vote per (IP + UA)
             voter_id = self.client_address[0] + ":" + self.headers.get("User-Agent", "")
 
             if voter_id in votes:

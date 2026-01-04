@@ -92,8 +92,11 @@ const THANK_YOU_MS = 5 * 60 * 1000;  // 5 minutes
 
 let currentOptions = [];
 let myVote = null;
+
 let pollOpen = null;
 let lastPollOpen = null;
+
+let pollStarted = false;
 let sessionClosed = false;
 let sessionClosedAt = null;
 
@@ -145,14 +148,10 @@ function updateButtonEnabled() {
   });
 }
 
-async function syncOptions() {
-  const r = await fetch("/options");
-  const j = await r.json();
-
-  if (JSON.stringify(j.options) !== JSON.stringify(currentOptions)) {
-    if (!j.options.includes(myVote)) myVote = null;
-    buildOptions(j.options);
-  }
+function hideBars() {
+  document.querySelectorAll(".barbox").forEach(b => {
+    b.style.display = "none";
+  });
 }
 
 function showWelcome() {
@@ -167,59 +166,15 @@ function showThankYou() {
   optionsDiv.style.display = "none";
 }
 
-/* ---------- poll state ---------- */
-async function pollState() {
-  await syncOptions();
+/* ---------- sync options ---------- */
+async function syncOptions() {
+  const r = await fetch("/options");
+  const j = await r.json();
 
-  const r = await fetch("/state");
-  const s = await r.json();
-
-  pollOpen = s.open;
-  sessionClosed = s.session_closed;
-  sessionClosedAt = s.session_closed_at;
-
-  /* reset selection when a NEW poll opens */
-  if (pollOpen && lastPollOpen === false) {
-    myVote = null;
-    updateButtonStyles();
+  if (JSON.stringify(j.options) !== JSON.stringify(currentOptions)) {
+    if (!j.options.includes(myVote)) myVote = null;
+    buildOptions(j.options);
   }
-  lastPollOpen = pollOpen;
-
-  /* session ended handling with timeout */
-  if (sessionClosed) {
-    const now = Date.now();
-    const closedMs = (sessionClosedAt ? sessionClosedAt * 1000 : now);
-    const age = now - closedMs;
-
-    if (age <= THANK_YOU_MS) {
-      showThankYou();
-    } else {
-      showWelcome();
-    }
-    return;
-  }
-
-  if (pollOpen) {
-    title.textContent = "Voting OPEN";
-    subtitle.textContent = "Select your answer.";
-    hideBars();
-    optionsDiv.style.display = "block";
-  } else {
-    /* not open, not session closed: show results (normal close) */
-    title.textContent = "Poll CLOSED";
-    subtitle.textContent = "Class results:";
-    optionsDiv.style.display = "block";
-    showResults();
-  }
-
-  updateButtonEnabled();
-}
-
-/* ---------- hide bars ---------- */
-function hideBars() {
-  document.querySelectorAll(".barbox").forEach(b => {
-    b.style.display = "none";
-  });
 }
 
 /* ---------- show results ---------- */
@@ -245,6 +200,61 @@ async function showResults() {
   });
 }
 
+/* ---------- poll state ---------- */
+async function pollState() {
+  await syncOptions();
+
+  const r = await fetch("/state");
+  const s = await r.json();
+
+  pollOpen = s.open;
+  pollStarted = !!s.poll_started;
+
+  sessionClosed = !!s.session_closed;
+  sessionClosedAt = s.session_closed_at;
+
+  /* reset selection when a NEW poll opens */
+  if (pollOpen && lastPollOpen === false) {
+    myVote = null;
+    updateButtonStyles();
+  }
+  lastPollOpen = pollOpen;
+
+  /* session ended handling with timeout */
+  if (sessionClosed) {
+    const now = Date.now();
+    const closedMs = (sessionClosedAt ? sessionClosedAt * 1000 : now);
+    const age = now - closedMs;
+
+    if (age <= THANK_YOU_MS) {
+      showThankYou();
+    } else {
+      showWelcome();
+    }
+    return;
+  }
+
+  /* NOT STARTED YET: Welcome (this is what was missing) */
+  if (!pollStarted && !pollOpen) {
+    showWelcome();
+    return;
+  }
+
+  if (pollOpen) {
+    title.textContent = "Voting OPEN";
+    subtitle.textContent = "Select your answer.";
+    optionsDiv.style.display = "block";
+    hideBars();
+  } else {
+    title.textContent = "Poll CLOSED";
+    subtitle.textContent = "Class results:";
+    optionsDiv.style.display = "block";
+    await showResults();
+  }
+
+  updateButtonEnabled();
+}
+
 /* ---------- vote ---------- */
 async function vote(letter) {
   if (!pollOpen) return;
@@ -260,7 +270,7 @@ async function vote(letter) {
 }
 
 /* ---------- init ---------- */
-showWelcome();     // ensures first paint is Welcome, even before first fetch
+showWelcome();   // first paint is always Welcome, before any fetch
 pollState();
 setInterval(pollState, 1000);
 </script>
