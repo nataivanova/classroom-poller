@@ -88,17 +88,48 @@ const title = document.getElementById("title");
 const subtitle = document.getElementById("subtitle");
 const optionsDiv = document.getElementById("options");
 
-const THANK_YOU_MS = 5 * 60 * 1000;  // 5 minutes
+const THANK_YOU_MS = 5 * 60 * 1000;
 
 let currentOptions = [];
 let myVote = null;
 
-let pollOpen = null;
-let lastPollOpen = null;
+let pollOpen = false;
+let lastPollOpen = false;
 
 let pollStarted = false;
 let sessionClosed = false;
 let sessionClosedAt = null;
+
+/* ---------- UI helpers ---------- */
+function showWelcome() {
+  title.textContent = "Welcome";
+  subtitle.textContent = "Please wait for the poll to open.";
+  optionsDiv.style.display = "none";
+}
+
+function showThankYou() {
+  title.textContent = "Thank you";
+  subtitle.textContent = "Polls are closed. Have a nice day.";
+  optionsDiv.style.display = "none";
+}
+
+function updateButtonStyles() {
+  document.querySelectorAll("button.vote").forEach(b => {
+    b.classList.toggle("selected", b.textContent === myVote);
+  });
+}
+
+function updateButtonEnabled() {
+  document.querySelectorAll("button.vote").forEach(b => {
+    b.disabled = !pollOpen;
+  });
+}
+
+function hideBars() {
+  document.querySelectorAll(".barbox").forEach(b => {
+    b.style.display = "none";
+  });
+}
 
 /* ---------- build options ---------- */
 function buildOptions(opts) {
@@ -133,37 +164,6 @@ function buildOptions(opts) {
 
   updateButtonStyles();
   updateButtonEnabled();
-}
-
-/* ---------- helpers ---------- */
-function updateButtonStyles() {
-  document.querySelectorAll("button.vote").forEach(b => {
-    b.classList.toggle("selected", b.textContent === myVote);
-  });
-}
-
-function updateButtonEnabled() {
-  document.querySelectorAll("button.vote").forEach(b => {
-    b.disabled = !pollOpen;
-  });
-}
-
-function hideBars() {
-  document.querySelectorAll(".barbox").forEach(b => {
-    b.style.display = "none";
-  });
-}
-
-function showWelcome() {
-  title.textContent = "Welcome";
-  subtitle.textContent = "Please wait for the poll to open.";
-  optionsDiv.style.display = "none";
-}
-
-function showThankYou() {
-  title.textContent = "Thank you";
-  subtitle.textContent = "Polls are closed. Have a nice day.";
-  optionsDiv.style.display = "none";
 }
 
 /* ---------- sync options ---------- */
@@ -202,43 +202,40 @@ async function showResults() {
 
 /* ---------- poll state ---------- */
 async function pollState() {
-  await syncOptions();
-
   const r = await fetch("/state");
   const s = await r.json();
 
   pollOpen = s.open;
   pollStarted = !!s.poll_started;
-
   sessionClosed = !!s.session_closed;
   sessionClosedAt = s.session_closed_at;
 
-  /* reset selection when a NEW poll opens */
+  /* reset selection on new poll */
   if (pollOpen && lastPollOpen === false) {
     myVote = null;
     updateButtonStyles();
   }
   lastPollOpen = pollOpen;
 
-  /* session ended handling with timeout */
+  /* session ended */
   if (sessionClosed) {
     const now = Date.now();
     const closedMs = (sessionClosedAt ? sessionClosedAt * 1000 : now);
     const age = now - closedMs;
 
-    if (age <= THANK_YOU_MS) {
-      showThankYou();
-    } else {
-      showWelcome();
-    }
+    if (age <= THANK_YOU_MS) showThankYou();
+    else showWelcome();
     return;
   }
 
-  /* NOT STARTED YET: Welcome (this is what was missing) */
+  /* never started */
   if (!pollStarted && !pollOpen) {
     showWelcome();
     return;
   }
+
+  /* now safe to sync options */
+  await syncOptions();
 
   if (pollOpen) {
     title.textContent = "Voting OPEN";
@@ -270,9 +267,12 @@ async function vote(letter) {
 }
 
 /* ---------- init ---------- */
-showWelcome();   // first paint is always Welcome, before any fetch
-pollState();
-setInterval(pollState, 1000);
+showWelcome();
+
+setTimeout(() => {
+  pollState();
+  setInterval(pollState, 2500);
+}, Math.random() * 800);
 </script>
 
 </body>

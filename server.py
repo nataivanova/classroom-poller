@@ -154,4 +154,11 @@ class Handler(SimpleHTTPRequestHandler):
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8000))
     print(f"Poll server running on 0.0.0.0:{port}")
-    HTTPServer(("0.0.0.0", port), Handler).serve_forever()
+
+    from socketserver import ThreadingMixIn
+
+    class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
+        daemon_threads = True
+        allow_reuse_address = True
+
+    ThreadedHTTPServer(("0.0.0.0", port), Handler).serve_forever()
