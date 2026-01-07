@@ -159,6 +159,8 @@ if __name__ == "__main__":
 
     class ThreadedHTTPServer(ThreadingMixIn, HTTPServer):
         daemon_threads = True
+        request_queue_size = 100
         allow_reuse_address = True
+        
 
     ThreadedHTTPServer(("0.0.0.0", port), Handler).serve_forever()
